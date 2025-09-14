@@ -1,0 +1,12 @@
+{
+  "name": "raven_api",
+  "version": "1.0.0",
+  "description": "Backend for my api client project",
+  "license": "ISC",
+  "author": "Gangu MI",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
