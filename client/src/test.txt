@@ -1,0 +1,94 @@
+import React, { useEffect, useState } from "react";
+
+function Tree({ node }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasChildren = node.children && node.children.length > 0;
+
+  return (
+    <li>
+      <div
+        style={{ cursor: hasChildren ? "pointer" : "default" }}
+        onClick={() => hasChildren && setExpanded(!expanded)}
+      >
+        {hasChildren && (expanded ? "📂" : "📁")} {node.name}
+      </div>
+
+      {hasChildren && expanded && (
+        <ul>
+          {node.children.map(child => (
+            <Tree key={child.id} node={child} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+export default function Collections() {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/collections")
+      .then(res => res.json())
+      .then(setData)
+      .catch(err => console.error("Failed to fetch collections", err));
+  }, []);
+
+  return (
+    <div>
+      <h2>Collections</h2>
+      <ul>
+        {data.map(node => (
+          <Tree key={node.id} node={node} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+
+API 👇🏼
+// routes/collections.js
+import express from "express";
+import Node from "../models/node.js";
+
+const router = express.Router();
+
+// GET all collections with hierarchy
+router.get("/", async (req, res) => {
+  try {
+    const collections = await Node.aggregate([
+      { $match: { type: "collection" } }, // start from collections
+      {
+        $graphLookup: {
+          from: "nodes",              // same collection
+          startWith: "$_id",          // start at collection _id
+          connectFromField: "_id",    // match by id
+          connectToField: "parentId", // follow parentId links
+          as: "children",
+          depthField: "level"         // optional: shows nesting depth
+        }
+      }
+    ]);
+
+    // Transform into nested structure React can use
+    const buildTree = (node, allNodes) => {
+      const children = allNodes.filter(n => String(n.parentId) === String(node._id));
+      return {
+        id: node._id,
+        name: node.name,
+        type: node.type,
+        children: children.map(child => buildTree(child, allNodes))
+      };
+    };
+
+    const hierarchy = collections.map(c => buildTree(c, [...collections, ...c.children]));
+
+    res.json(hierarchy);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch collections" });
+  }
+});
+
+export default router;
